@@ -32,3 +32,5 @@ except Exception as error:  # pylint: disable=broad-except
     sys.exit(4)  # Exit if the database cannot be initialized
 
 app.logger.info("Service initialized!")
+
+
