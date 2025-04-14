@@ -1,43 +1,60 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  creationTimestamp: null
-  labels:
-    app: accounts
-  name: accounts
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:  
+  name: cd-pipeline
 spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: accounts
-  strategy: {}
-  template:
-    metadata:
-      creationTimestamp: null
-      labels:
-        app: accounts
-    spec:
-      containers:
-      - image: IMAGE_NAME_HERE
-        name: accounts
-        resources: {}
+  workspaces:
+    - name: pipeline-workspace
+  params:
+    - name: repo-url
+    - name: branch
+      default: main
+    - name: build-image  # Added 'build-image' parameter
+      default: image-registry.openshift-image-registry.svc:5000/$SN_ICR_NAMESPACE/accounts:1
+  tasks:
+    - name: init
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace          
+      taskRef:
+        name: cleanup
 
-        env:
-          - name: DATABASE_HOST
-            value: postgresql
-          - name: DATABASE_NAME
-            valueFrom:
-              secretKeyRef:
-                name: postgresql
-                key: database-name
-          - name: DATABASE_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: postgresql
-                key: database-password
-          - name: DATABASE_USER
-            valueFrom:
-              secretKeyRef:
-                name: postgresql
-                key: database-user
-status: {}
+    - name: clone
+      workspaces:
+        - name: output
+          workspace: pipeline-workspace          
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.branch)
+      runAfter:
+        - init
+
+    - name: lint
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      taskRef:
+        name: flake8
+      params:
+        - name: image
+          value: "python:3.9-slim"
+        - name: args
+          value: ["--count", "--max-complexity=10", "--max-line-length=127", "--statistics"]
+      runAfter:
+        - clone
+
+    - name: build
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      taskRef:
+        name: kaniko
+      params:
+        - name: image
+          value: $(params.build-image)
+      runAfter:
+        - lint
