@@ -10,6 +10,10 @@ from service import config
 from service.common import log_handlers
 from flask_cors import CORS
 
+from flask_talisman import Talisman
+
+talisman = Talisman(app)
+
 # Create Flask application
 app = Flask(__name__)
 app.config.from_object(config)
